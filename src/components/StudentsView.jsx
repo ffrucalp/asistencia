@@ -3,16 +3,15 @@ import Papa from 'papaparse'
 import { supabase } from '../lib/supabase'
 
 export default function StudentsView({ user }) {
-  // Alumnos: admin ve ambas comisiones (0 = todas), no-admin también
-  // (la gestión de padrón es tarea administrativa, accesible a todos)
-  const commission = 0
-
   const [students, setStudents]     = useState([])
   const [importing, setImporting]   = useState(false)
   const [importMsg, setImportMsg]   = useState(null)
   const [showForm, setShowForm]     = useState(false)
   const [newStudent, setNewStudent] = useState({ name: '', dni: '', commission: 1 })
   const [loading, setLoading]       = useState(true)
+  const [editStudent, setEditStudent] = useState(null)  // alumno siendo editado
+  const [editData, setEditData]     = useState({})
+  const [saving, setSaving]         = useState(false)
   const fileRef = useRef(null)
 
   async function loadStudents() {
@@ -24,13 +23,12 @@ export default function StudentsView({ user }) {
 
   useEffect(() => { loadStudents() }, [])
 
-  // ── CSV import ─────────────────────────────────────────────────────────────
+  // ── CSV import ──────────────────────────────────────────────────────────────
   function handleFile(e) {
     const file = e.target.files[0]
     if (!file) return
     setImporting(true)
     setImportMsg(null)
-
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
@@ -38,17 +36,14 @@ export default function StudentsView({ user }) {
       complete: async ({ data: rows }) => {
         let ok = 0, fail = 0
         const records = []
-
         for (const row of rows) {
           const name = (row.nombre || row.name || row.alumno || '').trim()
           const dni  = String(row.dni || row.documento || row.legajo || '').trim()
           const comm = parseInt(row.comision || row.commission || '') || 1
-
           if (!name) { fail++; continue }
           if (![1, 2].includes(comm)) { fail++; continue }
           records.push({ name, dni, commission: comm, active: true })
         }
-
         for (let i = 0; i < records.length; i += 50) {
           const { error } = await supabase
             .from('students')
@@ -56,7 +51,6 @@ export default function StudentsView({ user }) {
           if (error) fail += records.slice(i, i + 50).length
           else ok += records.slice(i, i + 50).length
         }
-
         setImportMsg({ ok, fail })
         setImporting(false)
         loadStudents()
@@ -66,7 +60,7 @@ export default function StudentsView({ user }) {
     })
   }
 
-  // ── Manual add ─────────────────────────────────────────────────────────────
+  // ── Manual add ──────────────────────────────────────────────────────────────
   async function addStudent(e) {
     e.preventDefault()
     if (!newStudent.name.trim()) return
@@ -79,6 +73,27 @@ export default function StudentsView({ user }) {
     loadStudents()
   }
 
+  // ── Edit ────────────────────────────────────────────────────────────────────
+  function openEdit(student) {
+    setEditStudent(student)
+    setEditData({ name: student.name, dni: student.dni || '', commission: student.commission })
+  }
+
+  async function saveEdit(e) {
+    e.preventDefault()
+    if (!editData.name.trim()) return
+    setSaving(true)
+    await supabase.from('students').update({
+      name: editData.name.trim(),
+      dni: editData.dni.trim(),
+      commission: Number(editData.commission),
+    }).eq('id', editStudent.id)
+    setSaving(false)
+    setEditStudent(null)
+    loadStudents()
+  }
+
+  // ── Deactivate ──────────────────────────────────────────────────────────────
   async function deactivate(id) {
     if (!confirm('¿Dar de baja a este alumno? No se borrarán sus datos de asistencia.')) return
     await supabase.from('students').update({ active: false }).eq('id', id)
@@ -121,6 +136,7 @@ export default function StudentsView({ user }) {
         </div>
       )}
 
+      {/* ── Formulario agregar ── */}
       {showForm && (
         <form className="add-form" onSubmit={addStudent}>
           <h3>Agregar alumno/a</h3>
@@ -153,6 +169,55 @@ export default function StudentsView({ user }) {
         </form>
       )}
 
+      {/* ── Modal edición ── */}
+      {editStudent && (
+        <div className="modal-overlay" onClick={() => setEditStudent(null)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Editar alumno/a</h3>
+              <button className="modal-close" onClick={() => setEditStudent(null)}>×</button>
+            </div>
+            <form onSubmit={saveEdit}>
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <label>Nombre y apellido *</label>
+                <input type="text" value={editData.name}
+                  onChange={e => setEditData(d => ({ ...d, name: e.target.value }))}
+                  required autoFocus />
+              </div>
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <label>DNI</label>
+                <input type="text" value={editData.dni}
+                  onChange={e => setEditData(d => ({ ...d, dni: e.target.value }))}
+                  placeholder="Opcional" />
+              </div>
+              <div className="form-group" style={{ marginBottom: 20 }}>
+                <label>Comisión</label>
+                <select value={editData.commission}
+                  onChange={e => setEditData(d => ({ ...d, commission: e.target.value }))}>
+                  <option value={1}>Comisión 1</option>
+                  <option value={2}>Comisión 2</option>
+                </select>
+              </div>
+              {editData.commission !== editStudent.commission && (
+                <div className="edit-warn">
+                  ⚠️ Estás cambiando de Comisión {editStudent.commission} a Comisión {editData.commission}.
+                  Los registros de asistencia previos se mantienen asociados a la comisión original.
+                </div>
+              )}
+              <div className="form-actions">
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  {saving ? '⏳ Guardando…' : '✅ Guardar cambios'}
+                </button>
+                <button type="button" className="btn btn-outline" onClick={() => setEditStudent(null)}>
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Tablas ── */}
       {loading ? (
         <p className="loading-text">Cargando alumnos…</p>
       ) : (
@@ -171,7 +236,7 @@ export default function StudentsView({ user }) {
                     <tr>
                       <th>Nombre / Apellido</th>
                       <th>DNI</th>
-                      <th style={{ width: 80 }}>Acciones</th>
+                      <th style={{ width: 120 }}>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -179,7 +244,8 @@ export default function StudentsView({ user }) {
                       <tr key={s.id}>
                         <td className="td-name">{s.name}</td>
                         <td className="td-muted">{s.dni || '—'}</td>
-                        <td>
+                        <td className="td-actions">
+                          <button className="btn-edit-xs" onClick={() => openEdit(s)}>✏️ Editar</button>
                           <button className="btn-danger-xs" onClick={() => deactivate(s.id)}>Baja</button>
                         </td>
                       </tr>
