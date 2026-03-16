@@ -222,6 +222,55 @@ body {
 }
 .btn-danger-xs:hover { background: var(--red-light); }
 
+.btn-edit-xs {
+  padding: 3px 10px;
+  font-size: 12px;
+  background: none;
+  color: var(--blue);
+  border: 1px solid var(--blue);
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 6px;
+}
+.btn-edit-xs:hover { background: var(--blue-light); }
+
+.td-actions { white-space: nowrap; }
+
+/* ── Modal ─────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100; padding: 20px;
+}
+.modal-box {
+  background: white;
+  border-radius: 10px;
+  padding: 24px;
+  width: 100%; max-width: 440px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.18);
+}
+.modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 20px;
+}
+.modal-header h3 { font-size: 17px; font-weight: 700; }
+.modal-close {
+  background: none; border: none; font-size: 22px;
+  cursor: pointer; color: var(--gray-500); line-height: 1;
+}
+.modal-close:hover { color: var(--gray-900); }
+
+.edit-warn {
+  background: var(--yellow-light);
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  color: var(--yellow);
+  margin-bottom: 16px;
+}
+
 .view-header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* ── Pills & badges ──────────────────────────────────────── */
